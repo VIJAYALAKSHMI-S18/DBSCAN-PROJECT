@@ -1,74 +1,55 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import joblib
 
 # Page config
-st.set_page_config(page_title="Wine DBSCAN", layout="centered")
+st.set_page_config(page_title="Wine DBSCAN Predictor", layout="centered")
 
 st.title("🍷 Wine DBSCAN Clustering")
+st.write("Give DBSCAN parameters and get cluster distribution")
 
-# Load data & models
+# ---------------- LOAD DATA & SCALER ----------------
 df = pd.read_csv("wine_clustering_data.csv")
 scaler = joblib.load("scaler.pkl")
-pca = joblib.load("pca.pkl")
+
+X = df.drop("proline", axis=1)
+X_scaled = scaler.transform(X)
 
 # ---------------- INPUTS ----------------
-st.sidebar.header("🔧 DBSCAN Parameters")
+st.subheader("🔧 Input Parameters")
 
-eps = st.sidebar.slider(
-    "eps",
+eps = st.slider(
+    "eps (neighborhood radius)",
     min_value=0.1,
     max_value=5.0,
-    value=0.8,
+    value=2.0,
     step=0.1
 )
 
-min_samples = st.sidebar.slider(
+min_samples = st.slider(
     "min_samples",
     min_value=2,
     max_value=10,
-    value=5,
+    value=2,
     step=1
 )
 
-# ---------------- PROCESS ----------------
-X = df.drop("proline", axis=1)
-X_scaled = scaler.transform(X)
-X_pca = pca.transform(X_scaled)
+# ---------------- PREDICT BUTTON ----------------
+if st.button("Run DBSCAN"):
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+    labels = dbscan.fit_predict(X_scaled)
 
-dbscan = DBSCAN(eps=eps, min_samples=min_samples)
-labels = dbscan.fit_predict(X_pca)
+    # Cluster counts
+    cluster_counts = pd.Series(labels).value_counts().sort_index()
 
-# ---------------- OUTPUT 1: BAR CHART ----------------
-st.subheader("📊 Cluster Count (Bar Chart)")
+    # ---------------- OUTPUT ----------------
+    st.subheader("📊 Output: Cluster Distribution")
 
-cluster_counts = pd.Series(labels).value_counts().sort_index()
+    fig, ax = plt.subplots()
+    ax.bar(cluster_counts.index.astype(str), cluster_counts.values)
+    ax.set_xlabel("Cluster Label")
+    ax.set_ylabel("Number of Wines")
 
-fig1, ax1 = plt.subplots()
-ax1.bar(cluster_counts.index.astype(str), cluster_counts.values)
-ax1.set_xlabel("Cluster Label")
-ax1.set_ylabel("Number of Samples")
-
-st.pyplot(fig1)
-
-# ---------------- OUTPUT 2: CLUSTER SCATTER ----------------
-st.subheader("📈 Cluster Visualization (PCA)")
-
-fig2, ax2 = plt.subplots(figsize=(6, 5))
-
-for cluster in np.unique(labels):
-    ax2.scatter(
-        X_pca[labels == cluster, 0],
-        X_pca[labels == cluster, 1],
-        label=f"Cluster {cluster}",
-        s=40
-    )
-
-ax2.set_xlabel("PCA 1")
-ax2.set_ylabel("PCA 2")
-ax2.legend()
-
-st
+    st.pyplot(fig)
