@@ -1,65 +1,71 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import joblib
 import numpy as np
+import joblib
 
-# Load saved models
-scaler = joblib.load("scaler.pkl")
-pca = joblib.load("pca.pkl")
-dbscan = joblib.load("dbscan_model.pkl")
-
+# Page config
 st.set_page_config(page_title="Wine DBSCAN Clustering", layout="wide")
 
 st.title("🍷 Wine Clustering using DBSCAN")
 st.write("Unsupervised clustering based on chemical properties of wine")
 
-# Upload dataset
-uploaded_file = st.file_uploader("Upload Wine CSV file", type=["csv"])
+# Load dataset
+@st.cache_data
+def load_data():
+    return pd.read_csv("wine_clustering_data.csv")
 
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+df = load_data()
 
-    st.subheader("📄 Dataset Preview")
-    st.dataframe(df.head())
+# Load models
+scaler = joblib.load("scaler.pkl")
+pca = joblib.load("pca.pkl")
+dbscan = joblib.load("dbscan_model.pkl")
 
-    # Scale data
-    X = df.drop("proline", axis=1)
-    X_scaled = scaler.transform(X)
+# Show dataset
+st.subheader("📄 Dataset Preview")
+st.dataframe(df.head())
 
-    # PCA
-    X_pca = pca.transform(X_scaled)
+st.write("Shape of dataset:", df.shape)
 
-    # DBSCAN clustering
-    labels = dbscan.fit_predict(X_pca)
-    df["cluster"] = labels
+# Prepare data
+X = df.drop("proline", axis=1)
+X_scaled = scaler.transform(X)
 
-    st.subheader("🔢 Cluster Counts")
-    st.write(pd.Series(labels).value_counts())
+# PCA transform
+X_pca = pca.transform(X_scaled)
 
-    # Plot
-    st.subheader("📊 Cluster Visualization (PCA)")
-    fig, ax = plt.subplots(figsize=(7, 5))
+# DBSCAN clustering
+labels = dbscan.fit_predict(X_pca)
+df["cluster"] = labels
 
-    for cluster in np.unique(labels):
-        ax.scatter(
-            X_pca[labels == cluster, 0],
-            X_pca[labels == cluster, 1],
-            label=f"Cluster {cluster}",
-            s=40
-        )
+# Cluster info
+st.subheader("🔢 Cluster Distribution")
+st.write(pd.Series(labels).value_counts())
 
-    ax.set_xlabel("PCA Component 1")
-    ax.set_ylabel("PCA Component 2")
-    ax.legend()
-    st.pyplot(fig)
+# Visualization
+st.subheader("📊 Cluster Visualization (PCA)")
+fig, ax = plt.subplots(figsize=(7, 5))
 
-    # Download clustered data
-    st.subheader("⬇️ Download Clustered Data")
-    csv = df.to_csv(index=False).encode("utf-8")
-    st.download_button(
-        "Download CSV",
-        csv,
-        "wine_clustered_output.csv",
-        "text/csv"
+for cluster in np.unique(labels):
+    ax.scatter(
+        X_pca[labels == cluster, 0],
+        X_pca[labels == cluster, 1],
+        label=f"Cluster {cluster}",
+        s=40
     )
+
+ax.set_xlabel("PCA Component 1")
+ax.set_ylabel("PCA Component 2")
+ax.legend(title="Cluster")
+st.pyplot(fig)
+
+# Download clustered data
+st.subheader("⬇️ Download Clustered Data")
+csv = df.to_csv(index=False).encode("utf-8")
+st.download_button(
+    label="Download CSV",
+    data=csv,
+    file_name="wine_clustered_output.csv",
+    mime="text/csv"
+)
